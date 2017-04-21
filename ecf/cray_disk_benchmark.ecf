@@ -1,0 +1,42 @@
+#BSUB -W 0:59
+#BSUB -o bjob_cray_disk_benchmark.stdout
+#BSUB -e bjob_cray_disk_benchmark.stderr
+#BSUB -J disk_bm
+#BSUB -q "dev"
+#BSUB -M 1700
+
+export NODES=2
+
+module load craype-haswell
+module load PrgEnv-cray
+module load iobuf
+module list
+
+export OMP_NUM_THREADS=4
+export BUILD=cray
+export KMP_AFFINITY=disabled
+export IOBUF_PARAMS="*:verbose"
+
+# Run scripting package
+##disk_benchmark.job
+
+# Run test without job script
+export PWD=$(pwd)
+export USHdir="${PWD}/../ush"
+export EXECdir="${PWD}/../exec"
+export BUILD=cray		
+export USERNAME=$(whoami)    
+export VARdir=${HOME}/var/linux_benchmarks_${BUILD}
+export LOGdir=${HOME}/logs
+export HOST=$(hostname -s)	
+
+mkdir -pv ${VARdir} ${LOGdir} 
+
+if [ -e ${PWD}/../sorc/disktest/disktest ]; then
+   ${PWD}/../sorc/disktest/disktest --num-inserts=25k --datfile=${LOGdir}/disktest_cray.dat ${VARdir}/disktest_cray.idx
+else
+   ${EXECdir}/disktest --num-inserts=25k --datfile=${LOGdir}/disktest_cray.dat ${VARdir}/disktest_cray.idx
+fi
+
+
+
