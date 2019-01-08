@@ -29,7 +29,7 @@ all:
 	cd multicasttest; make -f makefile all 64BITCFG=1 FINAL=1
 	cd tcptest; make -f makefile all 64BITCFG=1 FINAL=1
 	cd udptest; make -f makefile all 64BITCFG=1 FINAL=1
-
+	cd flops; make -f makefile all 64BITCFG=1 FINAL=1
 # ===============================================================
 
 # Install the new binaries

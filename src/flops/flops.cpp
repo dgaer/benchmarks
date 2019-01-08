@@ -3,10 +3,10 @@
 // ------------------------------- //
 // ----------------------------------------------------------- // 
 // C++ Source Code File
-// C++ Compiler Used: GNU, Intel, Cray
+// C++ Compiler Used: GNU
 // Produced By: Douglas.Gaer@noaa.gov
-// File Creation Date: 10/17/2002
-// Date Last Modified: 01/08/2018
+// File Creation Date: 12/03/2018
+// Date Last Modified: 01/08/2019
 // ----------------------------------------------------------- // 
 // ------------- Program Description and Details ------------- // 
 // ----------------------------------------------------------- // 
@@ -19,7 +19,7 @@ application are subject to the licensing agreement stated within the
 source code and any documentation supplied with the third party
 library.
 
-Program used for CPU speed benchmark testing.
+Program used for FLOPS testing.
 */
 // ----------------------------------------------------------- // 
 #include "gxdlcode.h"
@@ -39,22 +39,16 @@ using namespace std; // Use unqualified names for Standard C++ library
 #include "m_log.h"
 
 // Version number and program name
-const char *VersionString = "1.28";
-const char *ProgramDescription = "CPU speed benchmark test";
+const char *VersionString = "1.01";
+const char *ProgramDescription = "FLOPS benchmark test";
 const char *ProducedBy = "Douglas.Gaer@noaa.gov";
-gxString ServiceName = "cputest";
+gxString ServiceName = "flops";
 gxString ProgramName = ServiceName; // Default program name
 
-
-// Buffer overhead includes space for compress header 
-// and compression overhead
-const unsigned BuffreOverhead = 100 * 1024; 
-
-// Set our defaults here
-unsigned long BUF_SIZE = 100000 * 1024;  // 100MEG test
-long NUM_THREADS = 20;
-
 // Set the global veriables here
+unsigned long ITERATIONS = 999999999;
+unsigned long NUM_THREADS = 1;
+int run_dp_test = 0;
 int num_command_line_args = 0;
 
 // Function declarations
@@ -93,9 +87,9 @@ int main(int argc, char **argv)
     arg = argv[++narg];
   }
 
-  CPUTestThread *t = new CPUTestThread;
+  FLOPSTestThread *t = new FLOPSTestThread;
   thrPool *pool = new thrPool;
-  long i;
+  unsigned long i;
 
   // Set this program's name and service name
   ProgramName = argv[0];
@@ -104,51 +98,35 @@ int main(int argc, char **argv)
   VersionMessage(); // Display the program version information
   HelpMessage(1); // Display the short help menu
 
-  ConsoleWrite("Starting multi-threaded CPU benchmark program.");
-  ConsoleWrite("Benchmarking using zlib compression.");
-  ConsoleWrite("Benchmark represents tasking CPU utilization.\n");
-  sbuf << clear << "Benchmark will be using " << BUF_SIZE << " memory buffer.";
-  ConsoleWrite(sbuf.c_str());
-  sbuf << clear << "Number of concurrent processing threads: " << NUM_THREADS;
+  unsigned long iterations = ITERATIONS/NUM_THREADS;
+
+  ConsoleWrite("Starting FLOPS benchmark program.");
+  ConsoleWrite("Benchmark represents floating point operations per second.\n");
+  sbuf << clear << "Iterations for " <<  NUM_THREADS << " threads = " << iterations;
   ConsoleWrite(sbuf.c_str());
   ConsoleWrite("Beginning benchmark testing now...");
   ConsoleWrite("Please be patient while all threads complete.");
   ConsoleWrite("Press Ctrl-C if you need to exit this program before completion.\n");
 
-  ConsoleWrite("Initializing shared memory buffer...");
-  unsigned total_buf_size = BUF_SIZE + (BuffreOverhead * NUM_THREADS);
-  sbuf << clear << "Shared memory size = " << total_buf_size;
-  ConsoleWrite(sbuf.c_str());
-  char *shared_membuf = new char[total_buf_size];
-  // Fill the buffer with random characters
-  memset(shared_membuf, 0, total_buf_size);
-  fillrand((unsigned char *)shared_membuf, total_buf_size);  
-  ConsoleWrite("Share memory initialization complete.\n");
-
-  unsigned buf_size_per_thread = BUF_SIZE / NUM_THREADS;
-  unsigned buf_start = 0;
-
   gxThreadPriority prio = gxTHREAD_PRIORITY_NORMAL;
   gxThreadType type = gxTHREAD_TYPE_JOINABLE;
   gxStackSizeType stack_size = 5000 * 1000;
 
-  // Get CPU clock cycles before starting CPU test
-  clock_t begin = clock();
+  clock_t start, end;
+  double cpu_time_used;
+  double flop;
 
-  global_tvars->Reset();
-  
+  // Get CPU clock cycles before starting test
+  start = clock();
+
   for(i = 0; i < NUM_THREADS; i++) {
-    sbuf << clear << "Starting thread: " << i; 
+    sbuf << clear << "Starting thread: " << (i+1); 
     ConsoleWriteErr(sbuf.c_str());
-    CPUThreadParm *parm = new CPUThreadParm;
-    parm->shared_membuf = shared_membuf;
-    parm->buf_size = total_buf_size;
-    parm->cytpro_overhead = BuffreOverhead;
-    parm->buf_start = buf_start;
-    parm->buf_len = buf_size_per_thread;
+    FLOPSThreadParm *parm = new FLOPSThreadParm;
+    parm->iterations = iterations; 
     parm->thread_number = i;
+    parm->run_dp_test = run_dp_test;
     t->CreateThread(pool, (void *)parm, prio, type, stack_size);
-    buf_start += (buf_size_per_thread + BuffreOverhead);
   }
   
   // Wait for all threads to exit 
@@ -164,28 +142,37 @@ int main(int argc, char **argv)
     delete pool; 
   }
   
-  // Get CPU clock cycles after test is complet
-  clock_t end_time = clock();
+  // Get CPU clock cycles after test is complete
+  end = clock();
 
   // Calculate the elapsed time in seconds. 
-  double elapsed_time = (double)(end_time - begin) / CLOCKS_PER_SEC;
+  cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+
+
   sbuf.Clear();
   sbuf.Precision(3); 
-  sbuf << "All threads completed CPU speed test in " << elapsed_time << " seconds";
+  sbuf << "All threads completed FLOPS test in " << cpu_time_used << " seconds";
   ConsoleWrite(sbuf.c_str());
 
-  double average_time;
-  global_tvars->GetAverageTime(average_time);
-  average_time /= NUM_THREADS;
+  flop = ITERATIONS;
+  flop *= 5;
+  flop /= cpu_time_used;
+
   sbuf.Clear();
   sbuf.Precision(3); 
-  sbuf << "Average time per threads is " << average_time << " seconds";
+  if(flop/1000000000000>=1){
+    flop/=1000000000000;
+    sbuf << "FLOPS: " << flop << " TFLOPS";
+  }
+  else {
+    flop/=1000000000;
+    sbuf << "FLOPS: " << flop << " GFLOPS";
+  }
   ConsoleWrite(sbuf.c_str());
 
   ConsoleWrite("\nBenchmark testing complete");
   ConsoleWriteErr("Exiting...");
 
-  delete[] shared_membuf;
   delete t;
   
   return 0; // Exit the process, terminating all threads
@@ -220,9 +207,9 @@ void HelpMessage(int short_help_menu)
   GXSTD::cout << "     --version             Print version number and exit" << "\n" << GXSTD::flush;
   GXSTD::cout << "     --debug               Enable debug mode default level --debug=1" << "\n" << GXSTD::flush;
   GXSTD::cout << "     --verbose             Turn on verbose messaging to stderr" << "\n" << GXSTD::flush;
-  GXSTD::cout << "     --num-threads=NUM     Number of thread to spawn" << "\n" << GXSTD::flush;
-  GXSTD::cout << "     --buf-size=SIZE       Size of memory buffer: 24k 240m 2.4g" << "\n" << GXSTD::flush;
-  GXSTD::cout << "\n" << GXSTD::flush;
+  GXSTD::cout << "     --num-threads=NUM     Number of thread to run" << "\n" << GXSTD::flush;
+  GXSTD::cout << "     --dp                  Double precision test (defaults to single  precision)" << "\n" << GXSTD::flush;
+  GXSTD::cout << "     --iterations=NUM      Iterations (defaults to 999999999)" << "\n" << GXSTD::flush;
   return;
 }
 
@@ -319,51 +306,20 @@ int ProcessDashDashArg(gxString &arg)
     has_valid_args = 1;
   }
 
-  if(arg == "buf-size") {
+  if(arg == "dp") {
+    run_dp_test = 1;
+    has_valid_args = 1;
+  }
+
+  if(arg == "iterations") {
     if(equal_arg.is_null()) { 
-      GXSTD::cout << "Error no number supplied with the --buf-size swtich" 
+      GXSTD::cout << "Error no number of iterations supplied with the --iterations swtich" 
 		  << "\n" << flush;
       return 0;
     }
-    equal_arg.ToLower();
-    gxString k = equal_arg.Right(1);
-    gxString m = equal_arg.Right(1);
-    gxString g = equal_arg.Right(1);
-    if(k == "k") {
-      equal_arg.DeleteAfterIncluding("k");
-      if(equal_arg.Atoi() <= 0) {
-	GXSTD::cout << "Error buffer size value is not valid" 
-		    << "\n" << flush;
-	return 0;
-      }
-      BUF_SIZE = 1000;
-      BUF_SIZE *= equal_arg.Atoi();
-    }
-    else if(m == "m") {
-      equal_arg.DeleteAfterIncluding("m");
-      if(equal_arg.Atoi() <= 0) {
-	GXSTD::cout << "Error buffer size value is not valid" 
-		    << "\n" << flush;
-	return 0;
-      }
-      BUF_SIZE = 1000 * 1000;
-      BUF_SIZE *= equal_arg.Atoi();
-    }
-    else if(g == "g") {
-      equal_arg.DeleteAfterIncluding("g");
-      if(equal_arg.Atoi() <= 0) {
-	GXSTD::cout << "Error buffer size value is not valid" 
-		    << "\n" << flush;
-	return 0;
-      }
-      BUF_SIZE = 1000000 * 1000;
-      BUF_SIZE *= equal_arg.Atoi();
-    }
-    else {
-      BUF_SIZE = equal_arg.Atoi();
-    }
-    if(BUF_SIZE <= 0) {
-      GXSTD::cout << "Error buffer size value is not valid" 
+    ITERATIONS = equal_arg.Atol();
+    if(ITERATIONS <= 0) {
+      GXSTD::cout << "Error number of iterations is not valid" 
 		  << "\n" << flush;
       return 0;
     }
