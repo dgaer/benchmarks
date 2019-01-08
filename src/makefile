@@ -41,6 +41,7 @@ install:
 	cd multicasttest; make -f makefile install 64BITCFG=1 FINAL=1
 	cd tcptest; make -f makefile install 64BITCFG=1 FINAL=1
 	cd udptest; make -f makefile install 64BITCFG=1 FINAL=1
+	cd flops; make -f makefile install 64BITCFG=1 FINAL=1
 
 # Remove object files and the executable after running make 
 # ===============================================================
@@ -51,6 +52,7 @@ clean:
 	cd multicasttest; make -f makefile clean 64BITCFG=1 FINAL=1
 	cd tcptest; make -f makefile clean 64BITCFG=1 FINAL=1
 	cd udptest; make -f makefile clean 64BITCFG=1 FINAL=1
+	cd flops; make -f makefile clean 64BITCFG=1 FINAL=1
 # --------------------------------------------------------------- 
 #####################
 #### End of File ####
